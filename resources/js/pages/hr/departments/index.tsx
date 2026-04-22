@@ -252,6 +252,20 @@ export default function Departments() {
       sortable: true
     },
     {
+      key: 'parent',
+      label: t('Parent Department'),
+      render: (value: any, row: any) => {
+        return row.parent?.name || '-';
+      }
+    },
+    {
+      key: 'manager',
+      label: t('Manager'),
+      render: (value: any, row: any) => {
+        return row.manager?.name || '-';
+      }
+    },
+    {
       key: 'branch',
       label: t('Branch'),
       render: (value: any, row: any) => {
@@ -462,34 +476,6 @@ export default function Departments() {
               label: t('Employee Count'),
               type: 'number',
               placeholder: '0'
-            },
-            {
-              name: 'active_employees',
-              label: t('Active Employees'),
-              type: 'number',
-              placeholder: '0'
-            },
-            {
-              name: 'open_employees',
-              label: t('Open Employees'),
-              type: 'number',
-              readOnly: true,
-              render: (field: any, formData: any, handleChange: any) => {
-                const count = parseInt(formData.employee_count || 0);
-                const active = parseInt(formData.active_employees || 0);
-                const open = count - active;
-                
-                // Update formData if open value changed to keep it in sync for submission
-                if (formData.open_employees !== open) {
-                    setTimeout(() => handleChange('open_employees', open), 0);
-                }
-
-                return (
-                  <div className="p-2 border rounded-md bg-gray-100 dark:bg-gray-800 font-bold text-lg text-primary">
-                    {open}
-                  </div>
-                );
-              }
             },
             { name: 'description', label: t('Description'), type: 'textarea' },
             {

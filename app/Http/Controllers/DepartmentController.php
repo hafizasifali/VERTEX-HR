@@ -14,7 +14,7 @@ class DepartmentController extends Controller
     {
         if (Auth::user()->can('manage-departments')) {
 
-            $query = Department::with(['branch', 'creator'])->where(function ($q) {
+            $query = Department::with(['branch', 'creator', 'parent', 'manager'])->where(function ($q) {
                 if (Auth::user()->can('manage-any-departments')) {
                     $q->whereIn('created_by',  getCompanyAndUsersId());
                 } elseif (Auth::user()->can('manage-own-departments')) {

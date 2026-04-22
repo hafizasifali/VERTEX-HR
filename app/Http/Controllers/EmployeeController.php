@@ -175,7 +175,7 @@ class EmployeeController extends Controller
                 ->where('status', 'active')
                 ->get(['id', 'name']);
 
-            $employees = User::whereIn('created_by', getCompanyAndUsersId())
+            $employees = User::whereIn('id', getCompanyAndUsersId())
                 ->where('status', 'active')
                 ->role('manager')
                 ->get(['id', 'name']);
@@ -425,7 +425,7 @@ class EmployeeController extends Controller
                 ->where('status', 'active')
                 ->get(['id', 'name']);
 
-            $employees = User::whereIn('created_by', getCompanyAndUsersId())
+            $employees = User::whereIn('id', getCompanyAndUsersId())
                 ->where('status', 'active')
                 ->where('id', '!=', $employee->user_id)
                 ->role('manager')
