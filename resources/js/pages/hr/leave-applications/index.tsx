@@ -336,7 +336,7 @@ export default function LeaveApplications() {
       action: 'approve',
       className: 'text-green-500',
       requiredPermission: 'approve-leave-applications',
-      condition: (item: any) => item.status === 'pending_manager' && (item.manager_id == auth?.user?.id || auth?.roles?.includes('company') || auth?.roles?.includes('hr'))
+      condition: (item: any) => item.status === 'pending_manager' && item.manager_id == auth?.user?.id
     },
     {
       label: t('Reject (Manager)'),
@@ -344,7 +344,7 @@ export default function LeaveApplications() {
       action: 'reject',
       className: 'text-red-500',
       requiredPermission: 'reject-leave-applications',
-      condition: (item: any) => item.status === 'pending_manager' && (item.manager_id == auth?.user?.id || auth?.roles?.includes('company') || auth?.roles?.includes('hr'))
+      condition: (item: any) => item.status === 'pending_manager' && item.manager_id == auth?.user?.id
     },
     {
       label: t('Approve (HR)'),
@@ -352,7 +352,7 @@ export default function LeaveApplications() {
       action: 'approve',
       className: 'text-indigo-500',
       requiredPermission: 'approve-leave-applications',
-      condition: (item: any) => item.status === 'pending_hr' && (auth?.roles?.includes('company') || auth?.roles?.includes('hr') || hasPermission(permissions, 'manage-any-leave-applications'))
+      condition: (item: any) => item.status === 'pending_hr' && (auth?.roles?.includes('company') || auth?.roles?.includes('hr'))
     },
     {
       label: t('Reject (HR)'),
@@ -360,7 +360,7 @@ export default function LeaveApplications() {
       action: 'reject',
       className: 'text-red-500',
       requiredPermission: 'reject-leave-applications',
-      condition: (item: any) => item.status === 'pending_hr' && (auth?.roles?.includes('company') || auth?.roles?.includes('hr') || hasPermission(permissions, 'manage-any-leave-applications'))
+      condition: (item: any) => item.status === 'pending_hr' && (auth?.roles?.includes('company') || auth?.roles?.includes('hr'))
     },
     {
       label: t('Delete'),
