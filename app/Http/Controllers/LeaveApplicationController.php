@@ -249,29 +249,29 @@ class LeaveApplicationController extends Controller
 
         $user = Auth::user();
         $isManager = $user->hasRole('manager') && ($leaveApplication->manager_id == $user->id);
-        $isHR = $user->hasRole(['hr', 'company']) || $user->can('manage-any-leave-applications');
+        $isHR = $user->hasRole(['hr', 'company']);
 
         try {
             // Level 1: Manager Approval
             if ($leaveApplication->status === 'pending_manager') {
-                if (!$isManager && !$isHR) {
-                    return redirect()->back()->with('error', __('Only assigned manager can approve this stage.'));
+                if (!$isManager) {
+                    return redirect()->back()->with('error', __('Only the assigned reporting manager can perform this action at this stage.'));
                 }
 
                 $leaveApplication->update([
                     'manager_status' => $validated['status'],
                     'manager_approved_at' => now(),
                     'manager_comments' => $validated['manager_comments'],
-                    'status' => 'pending_hr', // Always move to HR
+                    'status' => 'pending_hr', // Always move to HR after manager decision
                 ]);
 
-                return redirect()->back()->with('success', __('Manager review stage submitted. Application moved to HR.'));
+                return redirect()->back()->with('success', __('Manager decision submitted. The application has been forwarded to HR for final review.'));
             }
 
             // Level 2: HR Approval
             if ($leaveApplication->status === 'pending_hr') {
                 if (!$isHR) {
-                    return redirect()->back()->with('error', __('Only HR can approve this stage.'));
+                    return redirect()->back()->with('error', __('Only HR personnel can perform final approval at this stage.'));
                 }
 
                 $hrStatus = $validated['status'];
@@ -293,7 +293,7 @@ class LeaveApplicationController extends Controller
                     $leaveApplication->update([
                         'hr_status' => 'approved',
                         'hr_approved_at' => now(),
-                        'hr_comments' => $validated['manager_comments'],
+                        'hr_comments' => $validated['manager_comments'], // Reusing the comments field from request
                         'hr_person_id' => $user->id,
                         'status' => 'approved',
                         'approved_by' => $user->id,
@@ -301,7 +301,7 @@ class LeaveApplicationController extends Controller
                     ]);
 
                     $leaveApplication->createAttendanceRecords();
-                    return redirect()->back()->with('success', __('Leave fully approved.'));
+                    return redirect()->back()->with('success', __('Leave application has been fully approved.'));
                 } else {
                     $leaveApplication->update([
                         'hr_status' => $hrStatus,
@@ -310,7 +310,7 @@ class LeaveApplicationController extends Controller
                         'hr_person_id' => $user->id,
                         'status' => 'rejected',
                     ]);
-                    return redirect()->back()->with('success', __('Leave review completed. Final status: Rejected.'));
+                    return redirect()->back()->with('success', __('Leave application has been rejected by HR.'));
                 }
             }
 
