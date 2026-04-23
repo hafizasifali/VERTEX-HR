@@ -27,23 +27,24 @@ class EmployeeController extends Controller
     {
         if (Auth::user()->can('manage-employees')) {
             $authUser     = Auth::user();
-            $query = User::with(['employee.branch', 'employee.department', 'employee.designation', 'employee.manager'])
+            $query = User::select('users.*')
+                ->with(['employee.branch', 'employee.department', 'employee.designation', 'employee.manager'])
                 ->where(function ($q) {
                     if (Auth::user()->can('manage-any-employees')) {
-                        $q->whereIn('id',  getCompanyAndUsersId());
+                        $q->whereIn('users.id',  getCompanyAndUsersId());
                     } elseif (Auth::user()->can('manage-own-employees')) {
-                        $q->where('created_by', Auth::id())->orWhere('id', Auth::id());
+                        $q->where('users.created_by', Auth::id())->orWhere('users.id', Auth::id());
                     } else {
                         $q->whereRaw('1 = 0');
                     }
-                });
-
+                })
+                ->distinct();
 
             // Handle search
             if ($request->has('search') && !empty($request->search)) {
                 $query->where(function ($q) use ($request) {
-                    $q->where('name', 'like', '%' . $request->search . '%')
-                        ->orWhere('email', 'like', '%' . $request->search . '%')
+                    $q->where('users.name', 'like', '%' . $request->search . '%')
+                        ->orWhere('users.email', 'like', '%' . $request->search . '%')
                         ->orWhereHas('employee', function ($eq) use ($request) {
                             $eq->where('employee_id', 'like', '%' . $request->search . '%')
                                 ->orWhere('phone', 'like', '%' . $request->search . '%');
@@ -81,12 +82,12 @@ class EmployeeController extends Controller
 
             // Handle sorting
             if ($request->has('sort_field') && !empty($request->sort_field)) {
-                $query->orderBy($request->sort_field, $request->sort_direction ?? 'asc');
+                $query->orderBy('users.' . $request->sort_field, $request->sort_direction ?? 'asc');
             } else {
-                $query->orderBy('created_at', 'desc');
+                $query->orderBy('users.created_at', 'desc');
             }
 
-            $employees = $query->paginate($request->per_page ?? 10);
+            $employees = $query->paginate($request->per_page ?? 50);
 
             // Get branches, departments, and designations for filters
             $branches = Branch::whereIn('created_by', getCompanyAndUsersId())
@@ -108,7 +109,7 @@ class EmployeeController extends Controller
             $planLimits = null;
             if (isSaas()) {
                 if ($authUser->type === 'company' && $authUser->plan) {
-                    $currentUserCount = User::where('type', 'employee')->whereIn('created_by', getCompanyAndUsersId())->count();
+                    $currentUserCount = User::where('type', 'employee')->whereIn('id', getCompanyAndUsersId())->count();
                     $planLimits = [
                         'current_users' => $currentUserCount,
                         'max_users' => $authUser->plan->max_employees,
@@ -119,7 +120,7 @@ class EmployeeController extends Controller
                 elseif ($authUser->type !== 'superadmin' && $authUser->created_by) {
                     $companyUser = User::find($authUser->created_by);
                     if ($companyUser && $companyUser->type === 'company' && $companyUser->plan) {
-                        $currentUserCount = User::where('type', 'employee')->whereIn('created_by', getCompanyAndUsersId())->count();
+                        $currentUserCount = User::where('type', 'employee')->whereIn('id', getCompanyAndUsersId())->count();
                         $planLimits = [
                             'current_users' => $currentUserCount,
                             'max_users' => $companyUser->plan->max_employees,
@@ -177,7 +178,7 @@ class EmployeeController extends Controller
 
             $employees = User::whereIn('id', getCompanyAndUsersId())
                 ->where('status', 'active')
-                ->role('manager')
+                ->whereIn('id', Department::whereNotNull('manager_id')->pluck('manager_id'))
                 ->get(['id', 'name']);
 
             return Inertia::render('hr/employees/create', [
@@ -428,7 +429,7 @@ class EmployeeController extends Controller
             $employees = User::whereIn('id', getCompanyAndUsersId())
                 ->where('status', 'active')
                 ->where('id', '!=', $employee->user_id)
-                ->role('manager')
+                ->whereIn('id', Department::whereNotNull('manager_id')->pluck('manager_id'))
                 ->get(['id', 'name']);
 
             return Inertia::render('hr/employees/edit', [
@@ -815,12 +816,7 @@ class EmployeeController extends Controller
             $companyOwnerId = $companyOwner ? $companyOwner->id : null;
 
             $formattedEmployees = $employees->map(function ($user) use ($companyOwnerId) {
-                // If the user has no manager and isn't the company owner, default them to report to the company owner
                 $managerId = (!empty($user->employee->manager_id)) ? (int)$user->employee->manager_id : null;
-
-                if ($managerId === null && $companyOwnerId !== null && $user->id !== $companyOwnerId) {
-                    $managerId = $companyOwnerId;
-                }
 
                 return [
                     'id' => $user->id,
