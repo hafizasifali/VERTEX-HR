@@ -57,8 +57,7 @@ class DepartmentController extends Controller
                 ->get(['id', 'name']);
 
             // Get all employees for manager select
-            $employees = \App\Models\User::whereIn('created_by', getCompanyAndUsersId())
-                ->where('type', 'employee')
+            $employees = \App\Models\User::whereIn('id', getCompanyAndUsersId())
                 ->where('status', 'active')
                 ->get(['id', 'name']);
 
