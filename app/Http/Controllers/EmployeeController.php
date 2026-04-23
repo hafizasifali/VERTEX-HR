@@ -30,14 +30,14 @@ class EmployeeController extends Controller
             $query = User::with(['employee.branch', 'employee.department', 'employee.designation', 'employee.manager'])
                 ->where(function ($q) {
                     if (Auth::user()->can('manage-any-employees')) {
-                        $q->whereIn('created_by',  getCompanyAndUsersId());
+                        $q->whereIn('id',  getCompanyAndUsersId());
                     } elseif (Auth::user()->can('manage-own-employees')) {
                         $q->where('created_by', Auth::id())->orWhere('id', Auth::id());
                     } else {
                         $q->whereRaw('1 = 0');
                     }
-                })
-                ->where('type', 'employee');
+                });
+
 
             // Handle search
             if ($request->has('search') && !empty($request->search)) {
