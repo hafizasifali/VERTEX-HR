@@ -284,8 +284,8 @@ export default function LeaveApplications() {
       label: t('Status'),
       render: (value: string, item: any) => {
         const statuses: any = {
-          pending_manager: { label: t('Pending Manager'), color: 'bg-orange-50 text-orange-700 ring-orange-600/20' },
-          pending_hr: { label: t('Pending HR'), color: 'bg-purple-50 text-purple-700 ring-purple-600/20' },
+          pending_manager: { label: t('Manager Review'), color: 'bg-orange-50 text-orange-700 ring-orange-600/20' },
+          pending_hr: { label: t('HR Review'), color: 'bg-purple-50 text-purple-700 ring-purple-600/20' },
           pending: { label: t('Pending'), color: 'bg-yellow-50 text-yellow-700 ring-yellow-600/20' },
           approved: { label: t('Approved'), color: 'bg-green-50 text-green-700 ring-green-600/20' },
           rejected: { label: t('Rejected'), color: 'bg-red-50 text-red-700 ring-red-600/20' }
@@ -300,7 +300,7 @@ export default function LeaveApplications() {
         const status = statuses[displayStatus] || { label: displayStatus, color: 'bg-gray-50 text-gray-700 ring-gray-600/20' };
         return (
           <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${status.color}`}>
-            {value === 'pending_hr' && item.manager_status === 'rejected' ? `${status.label} (${t('Pending HR')})` : status.label}
+            {value === 'pending_hr' && item.manager_status === 'rejected' ? `${status.label} (${t('HR Review')})` : status.label}
           </span>
         );
       }
@@ -328,14 +328,13 @@ export default function LeaveApplications() {
       action: 'edit',
       className: 'text-amber-500',
       requiredPermission: 'edit-leave-applications',
-      condition: (item: any) => item.status === 'pending_manager' || item.status === 'pending'
+      condition: (item: any) => item.status === 'pending_manager' || item.status === 'pending' || item.status === 'pending_hr'
     },
     {
       label: t('Approve (Manager)'),
       icon: 'CheckCircle',
       action: 'approve',
       className: 'text-green-500',
-      requiredPermission: 'approve-leave-applications',
       condition: (item: any) => item.status === 'pending_manager' && item.manager_id == auth?.user?.id
     },
     {
@@ -343,7 +342,6 @@ export default function LeaveApplications() {
       icon: 'XCircle',
       action: 'reject',
       className: 'text-red-500',
-      requiredPermission: 'reject-leave-applications',
       condition: (item: any) => item.status === 'pending_manager' && item.manager_id == auth?.user?.id
     },
     {
@@ -583,15 +581,15 @@ export default function LeaveApplications() {
                 { value: 'approved', label: t('Approved') },
                 { value: 'rejected', label: t('Rejected') }
               ],
-              condition: (formData) => (formMode !== 'create' || auth?.roles?.includes('manager') || auth?.roles?.includes('hr') || auth?.roles?.includes('company')),
-              disabled: (formData: any) => !auth?.roles?.includes('manager')
+              conditional: (mode) => mode !== 'create',
+              disabled: (formData: any) => !(auth?.roles?.includes('manager') || formData.manager_id == auth?.user?.id)
             },
             {
               name: 'manager_comments',
               label: t('Manager Comments'),
               type: 'textarea',
-              condition: (formData) => (formMode !== 'create' || auth?.roles?.includes('manager') || auth?.roles?.includes('hr') || auth?.roles?.includes('company')),
-              disabled: (formData: any) => !auth?.roles?.includes('manager')
+              conditional: (mode) => mode !== 'create',
+              disabled: (formData: any) => !(auth?.roles?.includes('manager') || formData.manager_id == auth?.user?.id)
             },
             {
               name: 'hr_status',
@@ -602,15 +600,15 @@ export default function LeaveApplications() {
                 { value: 'approved', label: t('Approved') },
                 { value: 'rejected', label: t('Rejected') }
               ],
-              condition: (formData) => (formMode !== 'create' || auth?.roles?.includes('hr') || auth?.roles?.includes('company')),
-              disabled: (formData: any) => !(auth?.roles?.includes('hr') || auth?.roles?.includes('company'))
+              conditional: (mode) => mode !== 'create',
+              disabled: (formData: any) => !(auth?.roles?.includes('hr') || auth?.roles?.includes('company')) || formData.manager_status === 'pending'
             },
             {
               name: 'hr_comments',
               label: t('HR Comments'),
               type: 'textarea',
-              condition: (formData) => (formMode !== 'create' || auth?.roles?.includes('hr') || auth?.roles?.includes('company')),
-              disabled: (formData: any) => !(auth?.roles?.includes('hr') || auth?.roles?.includes('company'))
+              conditional: (mode) => mode !== 'create',
+              disabled: (formData: any) => !(auth?.roles?.includes('hr') || auth?.roles?.includes('company')) || formData.manager_status === 'pending'
             }
           ],
           modalSize: 'lg'

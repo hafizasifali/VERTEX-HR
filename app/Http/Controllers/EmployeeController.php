@@ -29,6 +29,7 @@ class EmployeeController extends Controller
             $authUser     = Auth::user();
             $query = User::select('users.*')
                 ->with(['employee.branch', 'employee.department', 'employee.designation', 'employee.manager'])
+                ->has('employee')
                 ->where(function ($q) {
                     if (Auth::user()->can('manage-any-employees')) {
                         $q->whereIn('users.id',  getCompanyAndUsersId());
@@ -178,6 +179,7 @@ class EmployeeController extends Controller
 
             $employees = User::whereIn('id', getCompanyAndUsersId())
                 ->where('status', 'active')
+                ->has('employee')
                 ->whereIn('id', Department::whereNotNull('manager_id')->pluck('manager_id'))
                 ->get(['id', 'name']);
 
@@ -428,6 +430,7 @@ class EmployeeController extends Controller
 
             $employees = User::whereIn('id', getCompanyAndUsersId())
                 ->where('status', 'active')
+                ->has('employee')
                 ->where('id', '!=', $employee->user_id)
                 ->whereIn('id', Department::whereNotNull('manager_id')->pluck('manager_id'))
                 ->get(['id', 'name']);
@@ -810,6 +813,7 @@ class EmployeeController extends Controller
             $employees = User::with(['employee.designation', 'employee.department'])
                 ->whereIn('id', getCompanyAndUsersId())
                 ->where('status', 'active')
+                ->has('employee')
                 ->get();
 
             $companyOwner = $employees->firstWhere('type', 'company');

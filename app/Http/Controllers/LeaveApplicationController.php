@@ -22,18 +22,12 @@ class LeaveApplicationController extends Controller
                     if (Auth::user()->hasRole(['hr', 'company'])) {
                         // HR/Admin: see all company leave applications
                         $q->whereIn('leave_applications.created_by', getCompanyAndUsersId());
-                    } elseif (Auth::user()->hasRole('manager')) {
-                        // Manager: see ONLY their own leaves AND leaves where they are the assigned manager
-                        $q->where(function ($subQ) {
-                            $subQ->where('employee_id', Auth::id())
-                                 ->orWhere('manager_id', Auth::id())
-                                 ->orWhere('created_by', Auth::id());
-                        });
                     } else {
-                        // Regular employee: see only their own leave applications
+                        // Managers and Employees:
+                        // See their own leaves AND leaves where they are the assigned reporting manager
                         $q->where(function ($subQ) {
                             $subQ->where('employee_id', Auth::id())
-                                 ->orWhere('created_by', Auth::id());
+                                 ->orWhere('manager_id', Auth::id());
                         });
                     }
                 });
@@ -192,7 +186,7 @@ class LeaveApplicationController extends Controller
             return redirect()->back()->with('error', __('Leave application Not Found.'));
         }
 
-        if ($leaveApplication->status !== 'pending' && $leaveApplication->status !== 'pending_manager') {
+        if (!in_array($leaveApplication->status, ['pending', 'pending_manager', 'pending_hr'])) {
             return redirect()->back()->with('error', __('Only pending applications can be edited.'));
         }
 
@@ -204,13 +198,59 @@ class LeaveApplicationController extends Controller
                 'end_date' => 'required|date|after_or_equal:start_date',
                 'reason' => 'required|string',
                 'attachment' => 'nullable|string',
+                'manager_status' => 'nullable|string|in:pending,approved,rejected',
+                'manager_comments' => 'nullable|string',
+                'hr_status' => 'nullable|string|in:pending,approved,rejected',
+                'hr_comments' => 'nullable|string',
             ]);
+
+            // Handle status transitions if status fields are provided
+            if (isset($validated['manager_status']) && $leaveApplication->status === 'pending_manager') {
+                if ($validated['manager_status'] !== 'pending') {
+                    $validated['status'] = 'pending_hr';
+                    $validated['manager_approved_at'] = now();
+                }
+            }
+
+            if (isset($validated['hr_status']) && $leaveApplication->status === 'pending_hr') {
+                if ($validated['hr_status'] !== 'pending') {
+                    $validated['hr_approved_at'] = now();
+                    $validated['hr_person_id'] = Auth::id();
+                    
+                    $mgrStatus = $validated['manager_status'] ?? $leaveApplication->manager_status;
+                    $hrStatus = $validated['hr_status'];
+
+                    // Final status depends on both manager and HR
+                    if ($hrStatus === 'approved' && $mgrStatus === 'approved') {
+                        // Double-check balance
+                        $currentYear = now()->year;
+                        $leaveBalance = \App\Models\LeaveBalance::where('employee_id', $leaveApplication->employee_id)
+                            ->where('leave_type_id', $leaveApplication->leave_type_id)
+                            ->where('year', $currentYear)
+                            ->first();
+
+                        if ($leaveBalance && $leaveBalance->remaining_days < $leaveApplication->total_days) {
+                            return redirect()->back()->with('error', __('Insufficient leave balance.'));
+                        }
+
+                        $validated['status'] = 'approved';
+                        $validated['approved_by'] = Auth::id();
+                        $validated['approved_at'] = now();
+                    } else if ($hrStatus === 'rejected' || $mgrStatus === 'rejected') {
+                        $validated['status'] = 'rejected';
+                    }
+                }
+            }
 
             $startDate = Carbon::parse($validated['start_date']);
             $endDate = Carbon::parse($validated['end_date']);
             $validated['total_days'] = $startDate->diffInDays($endDate) + 1;
 
             $leaveApplication->update($validated);
+
+            if ($leaveApplication->wasChanged('status') && $leaveApplication->status === 'approved') {
+                $leaveApplication->createAttendanceRecords();
+            }
 
             return redirect()->back()->with('success', __('Leave application updated successfully'));
         } catch (\Exception $e) {
@@ -248,7 +288,8 @@ class LeaveApplicationController extends Controller
         }
 
         $user = Auth::user();
-        $isManager = $user->hasRole('manager') && ($leaveApplication->manager_id == $user->id);
+        // Authorized as manager if they are the assigned manager_id for this specific leave
+        $isManager = ($leaveApplication->manager_id == $user->id);
         $isHR = $user->hasRole(['hr', 'company']);
 
         try {
