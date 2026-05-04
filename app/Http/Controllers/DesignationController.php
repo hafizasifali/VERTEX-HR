@@ -70,6 +70,8 @@ class DesignationController extends Controller
                     'name' => 'required|string|max:255',
                     'description' => 'nullable|string',
                     'department_id' => 'required|exists:departments,id',
+                    'no_of_positions' => 'nullable|integer|min:0',
+                    'sequence' => 'nullable|integer|min:0',
                     'status' => 'nullable|in:active,inactive',
                 ]);
 
@@ -108,6 +110,8 @@ class DesignationController extends Controller
                         'name' => 'required|string|max:255',
                         'description' => 'nullable|string',
                         'department_id' => 'required|exists:departments,id',
+                        'no_of_positions' => 'nullable|integer|min:0',
+                        'sequence' => 'nullable|integer|min:0',
                         'status' => 'nullable|in:active,inactive',
                     ]);
 

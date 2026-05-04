@@ -13,6 +13,8 @@ class Designation extends BaseModel
         'name',
         'description',
         'department_id',
+        'no_of_positions',
+        'sequence',
         'status',
         'created_by',
     ];

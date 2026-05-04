@@ -268,6 +268,16 @@ export default function Designations() {
       }
     },
     { 
+      key: 'no_of_positions', 
+      label: t('Number of Positions'),
+      render: (value: number) => value || '-'
+    },
+    { 
+      key: 'sequence', 
+      label: t('Sequence'),
+      render: (value: number) => value || '-'
+    },
+    { 
       key: 'status', 
       label: t('Status'),
       render: (value: string) => {
@@ -425,6 +435,8 @@ export default function Designations() {
               })) : [],
               required: true
             },
+            { name: 'no_of_positions', label: t('Number of Positions'), type: 'number', required: false },
+            { name: 'sequence', label: t('Sequence'), type: 'number', required: false },
             { 
               name: 'status', 
               label: t('Status'), 

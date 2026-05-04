@@ -192,6 +192,7 @@ class EmployeeController extends Controller
                 'attendancePolicies' => $attendancePolicies,
                 'employees' => $employees,
                 'generatedEmployeeId' => Employee::generateEmployeeId(),
+                'roles' => Role::get(['id', 'name','label']),
             ]);
         } else {
             return redirect()->back()->with('error', __('Permission Denied.'));
@@ -223,6 +224,7 @@ class EmployeeController extends Controller
                     'department_id' => 'required|exists:departments,id',
                     'designation_id' => 'required|exists:designations,id',
                     'manager_id' => 'nullable|exists:users,id',
+                    'role_id' => 'nullable|exists:roles,id',
                     'date_of_joining' => 'required|date',
                     'employment_type' => 'required|string|max:50',
                     'employee_status' => 'required|string|max:50',
@@ -273,10 +275,23 @@ class EmployeeController extends Controller
                 $user->save();
 
                 // Assign Employee role
-                if (isSaaS()) {
-                    $employeeRole = Role::where('created_by', createdBy())->where('name', 'employee')->first();
-                    if ($employeeRole) {
-                        $user->assignRole($employeeRole);
+                // if (isSaaS()) {
+                //     $employeeRole = Role::where('created_by', createdBy())->where('name', 'employee')->first();
+                //     if ($employeeRole) {
+                //         $user->assignRole($employeeRole);
+                //     }
+                // } else {
+                //     $employeeRole = Role::where('name', 'employee')->first();
+                //     if ($employeeRole) {
+                //         $user->assignRole($employeeRole);
+                //     }
+                // }
+                // Assign selected role if provided, otherwise assign default employee role
+
+                if ($request->has('role_id')) {
+                    $selectedRole = Role::find($request->role_id);
+                    if ($selectedRole) {
+                        $user->assignRole($selectedRole);
                     }
                 } else {
                     $employeeRole = Role::where('name', 'employee')->first();
@@ -284,7 +299,6 @@ class EmployeeController extends Controller
                         $user->assignRole($employeeRole);
                     }
                 }
-
 
                 // Create Employee model object
                 $employee = new Employee();
@@ -398,7 +412,7 @@ class EmployeeController extends Controller
             }
 
             // Load user with employee relationships
-            $user = User::with(['employee.branch', 'employee.department', 'employee.designation', 'employee.documents.documentType'])
+            $user = User::with(['employee.branch', 'employee.department', 'employee.designation', 'employee.documents.documentType', 'roles'])
                 ->where('id', $employee->user_id)
                 ->first();
 
@@ -443,6 +457,7 @@ class EmployeeController extends Controller
                 'documentTypes' => $documentTypes,
                 'shifts' => $shifts,
                 'attendancePolicies' => $attendancePolicies,
+                'roles' => Role::get(['id', 'name','label']),
                 'employees' => $employees,
             ]);
         } else {
@@ -481,6 +496,7 @@ class EmployeeController extends Controller
                     'department_id' => 'required|exists:departments,id',
                     'designation_id' => 'required|exists:designations,id',
                     'manager_id' => 'nullable|exists:users,id',
+                    'role_id' => 'nullable|exists:roles,id',
                     'date_of_joining' => 'required|date',
                     'employment_type' => 'required|string|max:50',
                     'employee_status' => 'required|string|max:50',
@@ -567,6 +583,14 @@ class EmployeeController extends Controller
                 $employee->base_salary = $request->salary;
 
                 $employee->save();
+
+                // update user role if changed
+                if ($request->has('role_id')) {
+                    $newRole = Role::find($request->role_id);
+                    if ($newRole) {
+                        $user->syncRoles($newRole);
+                    }
+                }
 
                 // Handle document uploads
                 if ($request->has('documents') && is_array($request->documents)) {
@@ -808,35 +832,91 @@ class EmployeeController extends Controller
     }
 
     public function orgChart()
-    {
-        if (Auth::user()->can('manage-employees')) {
-            $employees = User::with(['employee.designation', 'employee.department'])
-                ->whereIn('id', getCompanyAndUsersId())
-                ->where('status', 'active')
-                ->has('employee')
-                ->get();
+{
+    if (Auth::user()->can('manage-employees')) {
 
-            $companyOwner = $employees->firstWhere('type', 'company');
-            $companyOwnerId = $companyOwner ? $companyOwner->id : null;
+        $employees = User::with(['employee.designation', 'employee.department'])
+            ->whereIn('id', getCompanyAndUsersId())
+            ->where('status', 'active')
+            ->has('employee')
+            ->get();
 
-            $formattedEmployees = $employees->map(function ($user) use ($companyOwnerId) {
-                $managerId = (!empty($user->employee->manager_id)) ? (int)$user->employee->manager_id : null;
+        $activeEmployees = $employees->filter(function ($user) {
+            return optional($user->employee)->employee_status == true;
+        });
 
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'avatar' => $user->avatar,
-                    'designation' => ($user->employee && $user->employee->designation) ? $user->employee->designation->name : (($user->type == 'company') ? __('Company Owner') : ucfirst($user->type)),
-                    'department' => ($user->employee && $user->employee->department) ? $user->employee->department->name : '',
-                    'manager_id' => $managerId,
-                ];
-            });
+        // Group by designation
+        $groupedByDesignation = $activeEmployees->groupBy(function ($user) {
+            return optional($user->employee)->designation_id;
+        });
 
-            return Inertia::render('hr/org-chart/index', [
-                'employees' => $formattedEmployees,
-            ]);
-        } else {
-            return redirect()->back()->with('error', __('Permission Denied.'));
+        // 👇 store manager + department per designation
+        $designationMeta = [];
+
+        foreach ($groupedByDesignation as $designationId => $users) {
+
+            $designationMeta[$designationId] = [
+                'manager_id' => $users->pluck('employee.manager_id')->filter()->first(),
+                'department' => optional($users->first()->employee->department)->name,
+                'department_id' => optional($users->first()->employee)->department_id,
+            ];
         }
+
+        $formattedEmployees = collect();
+
+        // Real employees
+        foreach ($employees as $user) {
+
+            $formattedEmployees->push([
+                'id' => $user->id,
+                'name' => $user->name,
+                'avatar' => $user->avatar,
+                'designation' => optional($user->employee->designation)->name
+                    ?? (($user->type == 'company') ? __('Company Owner') : ucfirst($user->type)),
+                'department' => optional($user->employee->department)->name,
+                'manager_id' => optional($user->employee)->manager_id,
+            ]);
+        }
+
+        // Designations
+        $designations = \App\Models\Designation::all();
+
+        foreach ($designations as $designation) {
+
+            $currentCount = isset($groupedByDesignation[$designation->id])
+                ? $groupedByDesignation[$designation->id]->count()
+                : 0;
+
+            $required = (int) $designation->no_of_positions;
+
+            $vacancyCount = $required - $currentCount;
+
+            if ($vacancyCount > 0) {
+
+                $meta = $designationMeta[$designation->id] ?? null;
+
+                $managerId = $meta['manager_id'] ?? null;
+                $department = $meta['department'] ?? null;
+
+                for ($i = 0; $i < $vacancyCount; $i++) {
+
+                    $formattedEmployees->push([
+                        'id' => 'vacant_' . $designation->id . '_' . $i,
+                        'name' => 'Vacant Position',
+                        'avatar' => null,
+                        'designation' => $designation->name,
+                        'department' => $department, // ✅ NOW INCLUDED
+                        'manager_id' => $managerId,
+                    ]);
+                }
+            }
+        }
+
+        return Inertia::render('hr/org-chart/index', [
+            'employees' => $formattedEmployees,
+        ]);
     }
+
+    return redirect()->back()->with('error', __('Permission Denied.'));
+}
 }

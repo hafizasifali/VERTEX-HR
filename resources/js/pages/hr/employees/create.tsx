@@ -18,7 +18,7 @@ import { getImagePath } from '@/utils/helpers';
 
 export default function EmployeeCreate() {
   const { t } = useTranslation();
-  const { branches, departments, designations, documentTypes, shifts, attendancePolicies, employees, generatedEmployeeId } = usePage<any>().props;
+  const { branches, departments, designations, documentTypes, shifts, attendancePolicies, employees, roles, generatedEmployeeId } = usePage<any>().props;
 
   // State
   const [formData, setFormData] = useState<Record<string, any>>({
@@ -472,6 +472,27 @@ export default function EmployeeCreate() {
                   </SelectContent>
                 </Select>
                 {errors.manager_id && <p className="text-red-500 text-xs">{errors.manager_id}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role_id" required>{t('Access Role')}</Label>
+                <Select
+                  value={formData.role_id}
+                  required
+                  onValueChange={(value) => handleChange('role_id', value)}
+                >
+                  <SelectTrigger className={errors.role_id ? 'border-red-500' : ''}>
+                    <SelectValue placeholder={t('Select Access Role')} />
+                  </SelectTrigger>
+                  <SelectContent searchable={true}>
+                    {roles && (roles as any[]).map((role: any) => (
+                      <SelectItem key={role.id} value={role.id.toString()}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.role_id && <p className="text-red-500 text-xs">{errors.role_id}</p>}
               </div>
 
               <div className="space-y-2">
